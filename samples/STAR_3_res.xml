@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<results>
+	<delays>
+		<flow name="AFDX Flow 1">
+			<target name="B" value="271.0" />
+			<target name="C" value="271.0" />
+		</flow>
+		<flow name="AFDX Flow 2">
+			<target name="A" value="271.0" />
+			<target name="C" value="271.0" />
+		</flow>
+		<flow name="AFDX Flow 3">
+			<target name="A" value="271.0" />
+			<target name="B" value="271.0" />
+		</flow>
+	</delays>
+	<backlogs>
+		<switch name="AFDX Switch 1">
+			<port backlog="2317" num="0"/>
+			<port backlog="2317" num="1"/>
+			<port backlog="2317" num="2"/>
+			<total backlog="6951" buffer="65536.0" percent = "10.6%"/>
+		</switch>
+	</backlogs>
+	<load>
+		<edge name="A =&gt; AFDX Switch 1">
+			<usage percent = "8.5%" type = "direct" value = "8536000.0"/>
+			<usage percent = "17.0%" type = "reverse" value = "17072000.0"/>
+		</edge>
+		<edge name="B =&gt; AFDX Switch 1">
+			<usage percent = "8.5%" type = "direct" value = "8536000.0"/>
+			<usage percent = "17.0%" type = "reverse" value = "17072000.0"/>
+		</edge>
+		<edge name="C =&gt; AFDX Switch 1">
+			<usage percent = "8.5%" type = "direct" value = "8536000.0"/>
+			<usage percent = "17.0%" type = "reverse" value = "17072000.0"/>
+		</edge>
+	</load>
+</results>

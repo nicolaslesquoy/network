@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<results>
+	<delays>
+		<flow name="AFDX Flow 1">
+			<target name="Dest1" value="179.0" />
+			<target name="Dest2" value="179.0" />
+		</flow>
+	</delays>
+	<backlogs>
+		<switch name="Switch">
+			<port backlog="1159" num="1"/>
+			<port backlog="1159" num="2"/>
+			<total backlog="2318" buffer="65536.0" percent = "3.5%"/>
+		</switch>
+	</backlogs>
+	<load>
+		<edge name="Source =&gt; Switch">
+			<usage percent = "8.5%" type = "direct" value = "8536000.0"/>
+			<usage percent = "0.0%" type = "reverse" value = "0"/>
+		</edge>
+		<edge name="Switch =&gt; Dest1">
+			<usage percent = "8.5%" type = "direct" value = "8536000.0"/>
+			<usage percent = "0.0%" type = "reverse" value = "0"/>
+		</edge>
+		<edge name="Switch =&gt; Dest2">
+			<usage percent = "8.5%" type = "direct" value = "8536000.0"/>
+			<usage percent = "0.0%" type = "reverse" value = "0"/>
+		</edge>
+	</load>
+</results>

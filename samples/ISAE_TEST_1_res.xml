@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<results>
+	<delays>
+		<flow name="Flow1">
+			<target name="ES#SW2.0" value="1373.0" />
+			<target name="ES#SW2.1" value="1373.0" />
+			<target name="ES#SW2.2" value="1373.0" />
+			<target name="ES#SW2.3" value="1373.0" />
+			<target name="ES#SW2.4" value="1373.0" />
+		</flow>
+		<flow name="Flow2">
+			<target name="ES#SW2.0" value="1377.0" />
+			<target name="ES#SW2.1" value="1377.0" />
+			<target name="ES#SW2.2" value="1377.0" />
+			<target name="ES#SW2.3" value="1377.0" />
+			<target name="ES#SW2.4" value="1377.0" />
+		</flow>
+		<flow name="Flow3">
+			<target name="ES#SW2.0" value="1381.0" />
+			<target name="ES#SW2.1" value="1381.0" />
+			<target name="ES#SW2.2" value="1381.0" />
+			<target name="ES#SW2.3" value="1381.0" />
+			<target name="ES#SW2.4" value="1381.0" />
+		</flow>
+		<flow name="Flow4">
+			<target name="ES#SW2.0" value="1389.0" />
+			<target name="ES#SW2.1" value="1389.0" />
+			<target name="ES#SW2.2" value="1389.0" />
+			<target name="ES#SW2.3" value="1389.0" />
+			<target name="ES#SW2.4" value="1389.0" />
+		</flow>
+		<flow name="Flow5">
+			<target name="ES#SW2.0" value="1393.0" />
+			<target name="ES#SW2.1" value="1393.0" />
+			<target name="ES#SW2.2" value="1393.0" />
+			<target name="ES#SW2.3" value="1393.0" />
+			<target name="ES#SW2.4" value="1393.0" />
+		</flow>
+	</delays>
+	<backlogs>
+		<switch name="SW1">
+			<port backlog="6503" num="1"/>
+			<total backlog="6503" buffer="65536.0" percent = "9.9%"/>
+		</switch>
+		<switch name="SW2">
+			<port backlog="9590" num="0"/>
+			<port backlog="9590" num="2"/>
+			<port backlog="9590" num="3"/>
+			<port backlog="9590" num="4"/>
+			<port backlog="9590" num="5"/>
+			<total backlog="47950" buffer="65536.0" percent = "73.1%"/>
+		</switch>
+	</backlogs>
+	<load>
+		<edge name="ES#SW1.0 =&gt; SW1">
+			<usage percent = "8.5%" type = "direct" value = "8536000.0"/>
+			<usage percent = "0.0%" type = "reverse" value = "0"/>
+		</edge>
+		<edge name="ES#SW2.4 =&gt; SW2">
+			<usage percent = "0.0%" type = "direct" value = "0"/>
+			<usage percent = "47.4%" type = "reverse" value = "47480000.0"/>
+		</edge>
+		<edge name="SW1 =&gt; SW2">
+			<usage percent = "47.4%" type = "direct" value = "47480000.0"/>
+			<usage percent = "0.0%" type = "reverse" value = "0"/>
+		</edge>
+		<edge name="ES#SW1.1 =&gt; SW1">
+			<usage percent = "8.9%" type = "direct" value = "8936000.0"/>
+			<usage percent = "0.0%" type = "reverse" value = "0"/>
+		</edge>
+		<edge name="ES#SW1.2 =&gt; SW1">
+			<usage percent = "9.3%" type = "direct" value = "9336000.0"/>
+			<usage percent = "0.0%" type = "reverse" value = "0"/>
+		</edge>
+		<edge name="ES#SW1.3 =&gt; SW1">
+			<usage percent = "10.1%" type = "direct" value = "10136000.0"/>
+			<usage percent = "0.0%" type = "reverse" value = "0"/>
+		</edge>
+		<edge name="ES#SW1.4 =&gt; SW1">
+			<usage percent = "10.5%" type = "direct" value = "10536000.0"/>
+			<usage percent = "0.0%" type = "reverse" value = "0"/>
+		</edge>
+		<edge name="ES#SW2.0 =&gt; SW2">
+			<usage percent = "0.0%" type = "direct" value = "0"/>
+			<usage percent = "47.4%" type = "reverse" value = "47480000.0"/>
+		</edge>
+		<edge name="ES#SW2.1 =&gt; SW2">
+			<usage percent = "0.0%" type = "direct" value = "0"/>
+			<usage percent = "47.4%" type = "reverse" value = "47480000.0"/>
+		</edge>
+		<edge name="ES#SW2.2 =&gt; SW2">
+			<usage percent = "0.0%" type = "direct" value = "0"/>
+			<usage percent = "47.4%" type = "reverse" value = "47480000.0"/>
+		</edge>
+		<edge name="ES#SW2.3 =&gt; SW2">
+			<usage percent = "0.0%" type = "direct" value = "0"/>
+			<usage percent = "47.4%" type = "reverse" value = "47480000.0"/>
+		</edge>
+	</load>
+</results>
