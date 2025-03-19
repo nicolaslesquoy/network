@@ -127,7 +127,6 @@ class Parser:
         self.tree = ET.parse(str(file))
         self.root = self.tree.getroot()
         
-        # Initialize collections as class attributes
         self.nodes: Dict[str, Node] = {}
         self.links: List[Link] = []
         self.flows: Dict[str, Flow] = {}
@@ -152,7 +151,6 @@ class Parser:
             source = self.nodes[flow_elem.get('source')]
             name = flow_elem.get('name')
             
-            # Create flow
             flow = Flow(
                 name,
                 OVERHEAD,
@@ -161,13 +159,11 @@ class Parser:
                 source
             )
             self.flows[name] = flow
-            
-            # Parse targets for this flow
+
             for target_elem in flow_elem.findall('target'):
                 destination = self.nodes[target_elem.get('name')]
                 target = Target(flow, destination)
                 
-                # Extract path nodes
                 path = [flow.source]
                 for path_elem in target_elem.findall('path'):
                     node_name = path_elem.get('node')
