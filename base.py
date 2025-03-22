@@ -7,12 +7,11 @@ import sys
 
 # Constants
 MODE = "DEBUG"  # "PROD"
-CAPACITY = 100 * 10**6  # 100 Mbps
+CAPACITY = 100 * 10**6  # 100 Mbps - Default
 PATH_TO_OUT = Path("out/")
 assert PATH_TO_OUT.exists()
 
 # Utility functions
-
 
 def bytes_to_bits(byte: float) -> float:
     return byte * 8
@@ -438,7 +437,8 @@ class Writer:
         for i in range(0, len(edges) - 1, 2):
             edge_direct = edges[i]
             edge_reverse = edges[i + 1]
-            file.write(f'\t\t<edge name="{edge_direct.name}">\n')
+            edge_name = f"{edge_direct.source.name} =&gt; {edge_direct.destination.name}"
+            file.write(f'\t\t<edge name="{edge_name}">\n')
             file.write(
                 f'\t\t\t<usage percent="{edge_direct.load:.1f}%" type="direct" '
                 f'value="{edge_direct.arrival_curve_aggregated.rate}" />\n'
