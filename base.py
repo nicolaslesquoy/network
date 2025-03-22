@@ -1,3 +1,4 @@
+# Standard librairies
 from __future__ import annotations
 from typing import Dict, List, Tuple
 import xml.etree.ElementTree as ET
@@ -127,6 +128,8 @@ class Parser:
         self.file = file
         self.tree = ET.parse(str(file))
         self.root = self.tree.getroot()
+        self.capacity = 0
+        self.overhead = 0
         self.nodes: Dict[str, Node] = {}
         self.edges: List[Edge] = []
         self.flows: Dict[str, Flow] = {}
@@ -141,6 +144,20 @@ class Parser:
         ]
         assert len(found) == 1
         return found[0]
+    
+    def parse_network_header(self) -> None:
+        """Parse the network configuration header."""
+        network = self.root.find("network")
+        if network is None:
+            raise ValueError("Missing network configuration")
+        capacity = network.get("transmission-capacity")
+        overhead = network.get("overhead")
+        if "Mbps" in capacity:
+            capacity = int(capacity.replace("Mbps", "")) * 10**6
+        else:
+            self.capacity = int(capacity)
+        self.overhead = int(overhead)
+        return capacity, overhead
 
     def parse_stations(self) -> None:
         for station in self.root.findall("station"):
@@ -183,7 +200,7 @@ class Parser:
                 if max_payload and period:
                     flow = Flow(
                         name,
-                        bytes_to_bits(67),
+                        bytes_to_bits(self.overhead),
                         bytes_to_bits(float(max_payload)),
                         ms_to_s(float(period)),
                         source,
@@ -219,6 +236,8 @@ class Parser:
 
     def parse_network(self) -> Tuple[Dict[str, Flow], List[Target], List[Edge]]:
         """Parse the network configuration from the XML file."""
+        self.parse_network_header()
+        print(self.capacity, self.overhead)
         self.parse_stations()
         self.parse_switches()
         self.parse_edges()
@@ -226,97 +245,11 @@ class Parser:
         return self.flows, self.targets, self.edges
 
 
-class Writer:
-    """Handles writing network simulation results to XML files."""
-
-    def __init__(
-        self, xml_file: str, mode: str = MODE, path_to_out: Path = PATH_TO_OUT
-    ):
-        """Initialize the writer with output configuration.
-
-        Args:
-            xml_file: Path to the input XML file
-            mode: Simulation mode ("DEBUG" or "PROD")
-            path_to_out: Directory path for output files
-        """
-        self.input_path = Path(xml_file)
-        self.mode = mode
-        self.output_dir = path_to_out
-        self._setup_output_path()
-
-    def _setup_output_path(self) -> None:
-        """Set up the output file path based on input file and mode."""
-        suffix = "_DEBUG" if self.mode == "DEBUG" else ""
-        self.output_path = (
-            self.output_dir
-            / f"{self.input_path.stem}_res{suffix}{self.input_path.suffix}"
-        )
-
-    def write_results(self, flows: List[Flow], edges: List[Edge]) -> None:
-        """Write network simulation results to XML file.
-
-        Args:
-            flows: List of Flow objects with simulation results
-            edges: List of Edge objects with load information
-        """
-        with self.output_path.open("w") as res:
-            self._write_header(res)
-            self._write_delays(res, flows)
-            self._write_loads(res, edges)
-            self._write_footer(res)
-
-    def _write_header(self, file) -> None:
-        """Write XML header and opening tag."""
-        file.write('<?xml version="1.0" encoding="UTF-8"?>\n')
-        file.write("<results>\n")
-
-    def _write_delays(self, file, flows) -> None:
-        """Write delay information for all flows."""
-        file.write("\t<delays>\n")
-        for flow in flows:
-            file.write(f'\t\t<flow name="{flow.name}">\n')
-            for target in flow.targets:
-                file.write(
-                    f'\t\t\t<target name="{target.destination.name}" '
-                    f'value="{s_to_ms(target.total_delay)}" />\n'
-                )
-            file.write("\t\t</flow>\n")
-        file.write("\t</delays>\n")
-
-    def _write_loads(self, file, edges) -> None:
-        """Write load information for all edges."""
-        file.write("\t<load>\n")
-        for i in range(0, len(edges) - 1, 2):
-            edge_direct = edges[i]
-            edge_reverse = edges[i + 1]
-            file.write(f'\t\t<edge name="{edge_direct.name}">\n')
-            file.write(
-                f'\t\t\t<usage percent="{edge_direct.load:.1f}%" type="direct" '
-                f'value="{edge_direct.arrival_curve_aggregated.rate}" />\n'
-            )
-            file.write(
-                f'\t\t\t<usage percent="{edge_reverse.load:.1f}%" type="reverse" '
-                f'value="{edge_reverse.arrival_curve_aggregated.rate}" />\n'
-            )
-            file.write("\t\t</edge>\n")
-        file.write("\t</load>\n")
-
-    def _write_footer(self, file) -> None:
-        """Write closing tag."""
-        file.write("</results>\n")
-
-    def print_output(self) -> None:
-        """Print the contents of the output file to console."""
-        with self.output_path.open("r") as f:
-            for line in f:
-                print(line.rstrip())
-
-
 class NetworkCalculus:
     """Handles network calculus computations for delays and loads."""
 
     def __init__(
-        self, flows: Dict[str, Flow], targets: List[Target], edges: List[Edge]
+        self, flows: Dict[str, Flow], targets: List[Target], edges: List[Edge], capacity: int
     ):
         """Initialize with network components.
 
@@ -328,7 +261,7 @@ class NetworkCalculus:
         self.flows = flows
         self.targets = targets
         self.edges = edges
-        self.capacity = CAPACITY
+        self.capacity = capacity
 
     def _add_curve_to_switch(self, target: Target, edge: Edge) -> None:
         """Add arrival curve to edge if not already accounted for."""
@@ -442,6 +375,91 @@ class NetworkCalculus:
         self.process_all_targets()
         self.calculate_edge_loads()
 
+class Writer:
+    """Handles writing network simulation results to XML files."""
+
+    def __init__(
+        self, xml_file: str, mode: str = MODE, path_to_out: Path = PATH_TO_OUT
+    ):
+        """Initialize the writer with output configuration.
+
+        Args:
+            xml_file: Path to the input XML file
+            mode: Simulation mode ("DEBUG" or "PROD")
+            path_to_out: Directory path for output files
+        """
+        self.input_path = Path(xml_file)
+        self.mode = mode
+        self.output_dir = path_to_out
+        self._setup_output_path()
+
+    def _setup_output_path(self) -> None:
+        """Set up the output file path based on input file and mode."""
+        suffix = "_DEBUG" if self.mode == "DEBUG" else ""
+        self.output_path = (
+            self.output_dir
+            / f"{self.input_path.stem}_res{suffix}{self.input_path.suffix}"
+        )
+
+    def write_results(self, flows: List[Flow], edges: List[Edge]) -> None:
+        """Write network simulation results to XML file.
+
+        Args:
+            flows: List of Flow objects with simulation results
+            edges: List of Edge objects with load information
+        """
+        with self.output_path.open("w") as res:
+            self._write_header(res)
+            self._write_delays(res, flows)
+            self._write_loads(res, edges)
+            self._write_footer(res)
+
+    def _write_header(self, file) -> None:
+        """Write XML header and opening tag."""
+        file.write('<?xml version="1.0" encoding="UTF-8"?>\n')
+        file.write("<results>\n")
+
+    def _write_delays(self, file, flows) -> None:
+        """Write delay information for all flows."""
+        file.write("\t<delays>\n")
+        for flow in flows:
+            file.write(f'\t\t<flow name="{flow.name}">\n')
+            for target in flow.targets:
+                file.write(
+                    f'\t\t\t<target name="{target.destination.name}" '
+                    f'value="{s_to_ms(target.total_delay)}" />\n'
+                )
+            file.write("\t\t</flow>\n")
+        file.write("\t</delays>\n")
+
+    def _write_loads(self, file, edges) -> None:
+        """Write load information for all edges."""
+        file.write("\t<load>\n")
+        for i in range(0, len(edges) - 1, 2):
+            edge_direct = edges[i]
+            edge_reverse = edges[i + 1]
+            file.write(f'\t\t<edge name="{edge_direct.name}">\n')
+            file.write(
+                f'\t\t\t<usage percent="{edge_direct.load:.1f}%" type="direct" '
+                f'value="{edge_direct.arrival_curve_aggregated.rate}" />\n'
+            )
+            file.write(
+                f'\t\t\t<usage percent="{edge_reverse.load:.1f}%" type="reverse" '
+                f'value="{edge_reverse.arrival_curve_aggregated.rate}" />\n'
+            )
+            file.write("\t\t</edge>\n")
+        file.write("\t</load>\n")
+
+    def _write_footer(self, file) -> None:
+        """Write closing tag."""
+        file.write("</results>\n")
+
+    def print_output(self) -> None:
+        """Print the contents of the output file to console."""
+        with self.output_path.open("r") as f:
+            for line in f:
+                print(line.rstrip())
+
 
 class Check:
     """Handles comparison of simulation results against reference data."""
@@ -483,9 +501,9 @@ class Check:
                 ref_delay = float(ref_target.get("value"))
                 diff = abs(sim_delay - ref_delay)
 
-                status = "✓" if diff < 1.0 else "!"
+                status = "VALID" if diff < 1.0 else "INVALID"
                 print(
-                    f"{status} Target {target_name:10} - Sim: {sim_delay:8.1f}μs, "
+                    f"{status} >>> Target {target_name:10} - Sim: {sim_delay:8.1f}μs, "
                     f"Ref: {ref_delay:8.1f}μs, Diff: {diff:8.1f}μs"
                 )
 
@@ -493,7 +511,7 @@ class Check:
                 total_diff += diff
                 count += 1
 
-        return max_diff, (total_diff / count if count > 0 else 0)
+        return max_diff
 
     def _compare_loads(
         self, sim_tree: ET.ElementTree, ref_tree: ET.ElementTree
@@ -523,9 +541,9 @@ class Check:
                 ref_percent = float(ref_usage.get("percent").rstrip("%"))
                 diff = abs(sim_percent - ref_percent)
 
-                status = "✓" if diff < 0.1 else "!"
+                status = "VALID" if diff < 0.1 else "INVALID"
                 print(
-                    f"{status} Type {usage_type:8} - Sim: {sim_percent:5.1f}%, "
+                    f"{status} >>> Type {usage_type:8} - Sim: {sim_percent:5.1f}%, "
                     f"Ref: {ref_percent:5.1f}%, Diff: {diff:5.1f}%"
                 )
 
@@ -533,7 +551,7 @@ class Check:
                 total_diff += diff
                 count += 1
 
-        return max_diff, (total_diff / count if count > 0 else 0)
+        return max_diff
 
     def compare(self) -> bool:
         """Compare simulation results against reference data.
@@ -553,8 +571,8 @@ class Check:
             ref_tree = ET.parse(self.ref_path)
 
             # Compare delays and loads
-            max_delay_diff, avg_delay_diff = self._compare_delays(sim_tree, ref_tree)
-            max_load_diff, avg_load_diff = self._compare_loads(sim_tree, ref_tree)
+            max_delay_diff = self._compare_delays(sim_tree, ref_tree)
+            max_load_diff = self._compare_loads(sim_tree, ref_tree)
 
             # Overall assessment
             delay_ok = max_delay_diff <= 1.1
@@ -562,10 +580,10 @@ class Check:
 
             print("\nOverall Status:", end=" ")
             if delay_ok and load_ok:
-                print("✓ PASSED")
+                print("PASSED")
                 return True
             else:
-                print("! FAILED")
+                print("FAILED")
                 return False
 
         except ET.ParseError as e:
@@ -581,10 +599,8 @@ def main(file):
     parser = Parser(Path(file))
     flows, targets, edges = parser.parse_network()
 
-    print(edges)
-
     # Initial calculations
-    network_calculus = NetworkCalculus(flows, targets, edges)
+    network_calculus = NetworkCalculus(flows, targets, edges, parser.capacity)
     network_calculus.compute()
 
     # Calculate final loads and save results
