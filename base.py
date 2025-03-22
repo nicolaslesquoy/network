@@ -6,10 +6,12 @@ from pathlib import Path
 import sys
 
 # Constants
-MODE = "DEBUG"  # "PROD"
+MODE = "PROD"  # "PROD"
 CAPACITY = 100 * 10**6  # 100 Mbps - Default
 PATH_TO_OUT = Path("out/")
-assert PATH_TO_OUT.exists()
+# assert PATH_TO_OUT.exists()
+PATH_TO_SAMPLES = Path("samples/")
+# assert PATH_TO_SAMPLES.exists()
 
 # Utility functions
 
@@ -387,7 +389,7 @@ class Writer:
         """
         self.input_path = Path(xml_file)
         self.mode = mode
-        self.output_dir = path_to_out
+        self.output_dir = path_to_out if self.mode == "DEBUG" else Path(".")
         self._setup_output_path()
 
     def _setup_output_path(self) -> None:
@@ -463,13 +465,10 @@ class Check:
     """Handles comparison of simulation results against reference data."""
 
     def __init__(
-        self, input_file: str, mode: str = MODE, path_to_out: Path = PATH_TO_OUT
+        self, input_file: str, mode: str = MODE
     ):
-        self.sim_path = (
-            path_to_out
-            / f"{Path(input_file).stem}_res{'_DEBUG' if mode=='DEBUG' else ''}.xml"
-        )
-        self.ref_path = Path(input_file).parent / f"{Path(input_file).stem}_res.xml"
+        self.sim_path = PATH_TO_OUT / f"{Path(input_file).stem}_res_DEBUG.xml" if mode == "DEBUG" else Path(".") / f"{Path(input_file).stem}_res.xml"
+        self.ref_path = PATH_TO_SAMPLES / f"{Path(input_file).stem}_res.xml"
 
     def _compare_delays(
         self, sim_tree: ET.ElementTree, ref_tree: ET.ElementTree

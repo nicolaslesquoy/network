@@ -1,5 +1,6 @@
 docs/
 *_v2.xml
+*.xml
 doc.py
 *_old.py
 .venv/
