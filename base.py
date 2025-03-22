@@ -12,11 +12,14 @@ assert PATH_TO_OUT.exists()
 
 # Utility functions
 
+
 def bytes_to_bits(byte: float) -> float:
     return byte * 8
 
+
 def ms_to_s(milliseconds: float) -> float:
     return milliseconds / 1000
+
 
 def s_to_ms(seconds: float) -> float:
     return seconds * 10**6
@@ -118,6 +121,7 @@ class Station(Node):
         self.arrival_curve_aggregated = ArrivalCurve(0, 0)
         super().__init__(name)
 
+
 class Parser:
     def __init__(self, file: Path) -> None:
         self.file = file
@@ -137,7 +141,7 @@ class Parser:
         ]
         assert len(found) == 1
         return found[0]
-    
+
     def parse_stations(self) -> None:
         for station in self.root.findall("station"):
             name = station.get("name")
@@ -200,7 +204,9 @@ class Parser:
                                 step_dest_name = pt.get("node")
                                 if step_dest_name:
                                     step_dest = self.nodes[step_dest_name]
-                                    edge = self.edges[self.find_edge(step_source, step_dest)]
+                                    edge = self.edges[
+                                        self.find_edge(step_source, step_dest)
+                                    ]
                                     target.path.append(edge)
                                     if edge not in edges_traversed:
                                         edges_traversed.append(edge)
@@ -219,12 +225,15 @@ class Parser:
         self.parse_flows()
         return self.flows, self.targets, self.edges
 
+
 class Writer:
     """Handles writing network simulation results to XML files."""
 
-    def __init__(self, xml_file: str, mode: str = MODE, path_to_out: Path = PATH_TO_OUT):
+    def __init__(
+        self, xml_file: str, mode: str = MODE, path_to_out: Path = PATH_TO_OUT
+    ):
         """Initialize the writer with output configuration.
-        
+
         Args:
             xml_file: Path to the input XML file
             mode: Simulation mode ("DEBUG" or "PROD")
@@ -238,11 +247,14 @@ class Writer:
     def _setup_output_path(self) -> None:
         """Set up the output file path based on input file and mode."""
         suffix = "_DEBUG" if self.mode == "DEBUG" else ""
-        self.output_path = self.output_dir / f"{self.input_path.stem}_res{suffix}{self.input_path.suffix}"
+        self.output_path = (
+            self.output_dir
+            / f"{self.input_path.stem}_res{suffix}{self.input_path.suffix}"
+        )
 
     def write_results(self, flows: List[Flow], edges: List[Edge]) -> None:
         """Write network simulation results to XML file.
-        
+
         Args:
             flows: List of Flow objects with simulation results
             edges: List of Edge objects with load information
@@ -303,9 +315,11 @@ class Writer:
 class NetworkCalculus:
     """Handles network calculus computations for delays and loads."""
 
-    def __init__(self, flows: Dict[str, Flow], targets: List[Target], edges: List[Edge]):
+    def __init__(
+        self, flows: Dict[str, Flow], targets: List[Target], edges: List[Edge]
+    ):
         """Initialize with network components.
-        
+
         Args:
             flows: Dictionary of Flow objects
             targets: List of Target objects
@@ -362,7 +376,7 @@ class NetworkCalculus:
 
     def process_target(self, target: Target) -> bool:
         """Process a single target through its path.
-        
+
         Returns:
             bool: True if target completed its path, False otherwise
         """
@@ -404,11 +418,15 @@ class NetworkCalculus:
         for i in range(0, len(self.edges), 2):
             # Calculate direct traffic load
             direct_edge = self.edges[i]
-            direct_edge.load = direct_edge.arrival_curve_aggregated.rate * 100 / self.capacity
+            direct_edge.load = (
+                direct_edge.arrival_curve_aggregated.rate * 100 / self.capacity
+            )
 
             # Calculate reverse traffic load
             reverse_edge = self.edges[i + 1]
-            reverse_edge.load = reverse_edge.arrival_curve_aggregated.rate * 100 / self.capacity
+            reverse_edge.load = (
+                reverse_edge.arrival_curve_aggregated.rate * 100 / self.capacity
+            )
 
             # Ensure loads don't exceed link capacity
             total_load = direct_edge.load + reverse_edge.load
@@ -428,11 +446,18 @@ class NetworkCalculus:
 class Check:
     """Handles comparison of simulation results against reference data."""
 
-    def __init__(self, input_file: str, mode: str = MODE, path_to_out: Path = PATH_TO_OUT):
-        self.sim_path = path_to_out / f"{Path(input_file).stem}_res{'_DEBUG' if mode=='DEBUG' else ''}.xml"
+    def __init__(
+        self, input_file: str, mode: str = MODE, path_to_out: Path = PATH_TO_OUT
+    ):
+        self.sim_path = (
+            path_to_out
+            / f"{Path(input_file).stem}_res{'_DEBUG' if mode=='DEBUG' else ''}.xml"
+        )
         self.ref_path = Path(input_file).parent / f"{Path(input_file).stem}_res.xml"
 
-    def _compare_delays(self, sim_tree: ET.ElementTree, ref_tree: ET.ElementTree) -> tuple[float, float]:
+    def _compare_delays(
+        self, sim_tree: ET.ElementTree, ref_tree: ET.ElementTree
+    ) -> tuple[float, float]:
         """Compare delays between simulation and reference results."""
         print("\n=== Delay Comparison ===")
         print("------------------------")
@@ -470,7 +495,9 @@ class Check:
 
         return max_diff, (total_diff / count if count > 0 else 0)
 
-    def _compare_loads(self, sim_tree: ET.ElementTree, ref_tree: ET.ElementTree) -> tuple[float, float]:
+    def _compare_loads(
+        self, sim_tree: ET.ElementTree, ref_tree: ET.ElementTree
+    ) -> tuple[float, float]:
         """Compare loads between simulation and reference results."""
         print("\n=== Load Comparison ===")
         print("----------------------")
@@ -510,12 +537,14 @@ class Check:
 
     def compare(self) -> bool:
         """Compare simulation results against reference data.
-        
+
         Returns:
             bool: True if all checks pass, False otherwise
         """
         if not self.sim_path.exists() or not self.ref_path.exists():
-            print(f"Error: Missing files\nSimulation: {self.sim_path}\nReference: {self.ref_path}")
+            print(
+                f"Error: Missing files\nSimulation: {self.sim_path}\nReference: {self.ref_path}"
+            )
             return False
 
         try:
