@@ -152,11 +152,10 @@ class Parser:
         capacity = network.get("transmission-capacity")
         overhead = network.get("overhead")
         if "Mbps" in capacity:
-            capacity = int(capacity.replace("Mbps", "")) * 10**6
+            self.capacity = int(capacity.replace("Mbps", "")) * 10**6
         else:
             self.capacity = int(capacity)
         self.overhead = int(overhead)
-        return capacity, overhead
 
     def parse_stations(self) -> None:
         for station in self.root.findall("station"):
@@ -236,7 +235,6 @@ class Parser:
     def parse_network(self) -> Tuple[Dict[str, Flow], List[Target], List[Edge]]:
         """Parse the network configuration from the XML file."""
         self.parse_network_header()
-        print(self.capacity, self.overhead)
         self.parse_stations()
         self.parse_switches()
         self.parse_edges()
@@ -603,7 +601,7 @@ def main(file):
     network_calculus = NetworkCalculus(flows, targets, edges, parser.capacity)
     network_calculus.compute()
 
-    # Calculate final loads and save results
+    # Save results
     writer = Writer(file)
     writer.write_results(list(flows.values()), edges)
 
