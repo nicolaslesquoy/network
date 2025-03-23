@@ -6,29 +6,54 @@ from pathlib import Path
 import sys
 
 # Constants
-MODE = "PROD"  # "PROD"
+MODE = "DEBUG"  # or "DEBUG" to compare with references features
 CAPACITY = 100 * 10**6  # 100 Mbps - Default
 PATH_TO_OUT = Path("out/")
-# assert PATH_TO_OUT.exists()
 PATH_TO_SAMPLES = Path("samples/")
-# assert PATH_TO_SAMPLES.exists()
+if "DEBUG":
+    # This program expects the following folders to exist.
+    assert PATH_TO_OUT.exists()  # Output folder
+    assert PATH_TO_SAMPLES.exists()  # Samples folder
 
 # Utility functions
 
+
 def bytes_to_bits(byte: float) -> float:
+    """Convert bytes to bits."""
     return byte * 8
 
 
 def ms_to_s(milliseconds: float) -> float:
+    """Convert milliseconds to seconds."""
     return milliseconds / 1000
 
 
-def s_to_ms(seconds: float) -> float:
+def s_to_us(seconds: float) -> float:
+    """Convert seconds to microseconds."""
     return seconds * 10**6
 
 
 # Classes
+class ArrivalCurve:
+    """Represents an affine arrival curve with its burst and rate properties."""
+
+    def __init__(self, burst: float, rate: float) -> None:
+        self.burst = burst
+        self.rate = rate
+
+    def __add__(self, other: "ArrivalCurve") -> None:
+        """Add another ArrivalCurve to this one."""
+        self.burst += other.burst
+        self.rate += other.rate
+
+    def add_delay(self, delay: float) -> None:
+        """Add delay to the arrival curve."""
+        self.burst += delay * self.rate
+
+
 class Flow:
+    """Represents a flow object from the .xml file with its properties."""
+
     def __init__(
         self,
         name: str,
@@ -45,9 +70,11 @@ class Flow:
         self.targets: list["Target"] = []
 
     def get_data_length(self) -> float:
+        """Get the total length of the data in bits."""
         return self.overhead + self.payload
 
     def get_rate(self) -> float:
+        """Get the rate of the flow in bits per second."""
         return self.get_data_length() / self.period
 
     def __repr__(self) -> str:
@@ -58,40 +85,31 @@ class Flow:
 
 
 class Target:
+    """Represents a target object from the .xml file with its properties."""
+
     def __init__(self, flow: "Flow", destination: "Station") -> None:
-        self.path: list["Edge"] = []
         self.flow = flow
         self.destination = destination
-        self.current_step = 0
+        self.path: list["Edge"] = []
         self.arrivalCurve = ArrivalCurve(flow.get_data_length(), flow.get_rate())
+        self.current_step = 0
         self.total_delay = 0.0
         self.completed = False
 
 
-class ArrivalCurve:
-    def __init__(self, burst: float, rate: float) -> None:
-        self.burst = burst
-        self.rate = rate
-
-    def add(self, burst: float, rate: float) -> None:
-        self.burst += burst
-        self.rate += rate
-
-    def add_delay(self, delay: float) -> None:
-        self.burst += delay * self.rate
-
-
 # Link
 class Edge:
+    """Represents a link object from the .xml file with its properties."""
+
     def __init__(self, source: "Node", destination: "Node", name: str) -> None:
         self.source = source
         self.destination = destination
         self.name = name
-        self.goal = 0.0  # Calculated at the end of parseXML
-        self.arrival_curve_aggregated = ArrivalCurve(
+        self.flows_passing = 0.0  # Number of flows passing through the edge (link)
+        self.cumulative_arrival_curve = ArrivalCurve(
             0, 0
-        )  # Will aggregate all curves passing through this Edge
-        self.flows_passed: list[str] = []  # Track flows already aggregated
+        )  # Cumulative arrival curve for the link
+        self.flows_passed: list[str] = []  # Track flows already cumulated
         self.delay = 0.0  # Calculated after all aggregations
         self.load = 0.0  # Calculated at the end, to compare with C
 
@@ -103,6 +121,8 @@ class Edge:
 
 
 class Node:
+    """Represents a generic node object from the .xml file."""
+
     def __init__(self, name: str) -> None:
         self.name = name
 
@@ -114,38 +134,45 @@ class Node:
 
 
 class Switch(Node):
+    """Represents a switch object from the .xml file."""
+
     def __init__(self, name: str) -> None:
         super().__init__(name)
 
 
 class Station(Node):
+    """Represents a station object from the .xml file with its properties."""
+
     def __init__(self, name):
-        self.arrival_curve_aggregated = ArrivalCurve(0, 0)
         super().__init__(name)
+        self.cumulative_arrival_curve = ArrivalCurve(0, 0)
 
 
 class Parser:
+    """Handles parsing of network configuration from XML files."""
+
     def __init__(self, file: Path) -> None:
         self.file = file
         self.tree = ET.parse(str(file))
         self.root = self.tree.getroot()
         self.capacity = 0
         self.overhead = 0
-        self.nodes: Dict[str, Node] = {}
-        self.edges: List[Edge] = []
-        self.flows: Dict[str, Flow] = {}
-        self.targets: List[Target] = []
+        self.nodes: Dict[str, Node] = (
+            {}
+        )  # All nodes in the network (stations and switches)
+        self.edges: List[Edge] = []  # All edges in the network (links)
+        self.flows: Dict[str, Flow] = {}  # All flows in the network
+        self.targets: List[Target] = []  # All targets in the network
 
     def find_edge(self, source: Node, dest: Node) -> int:
-        found = [
+        """Find the index of the edge between two nodes."""
+        return [
             index
             for index in range(len(self.edges))
             if (source.name == self.edges[index].source.name)
             and (dest.name == self.edges[index].destination.name)
-        ]
-        assert len(found) == 1
-        return found[0]
-    
+        ][0]
+
     def parse_network_header(self) -> None:
         """Parse the network configuration header."""
         network = self.root.find("network")
@@ -153,27 +180,35 @@ class Parser:
             raise ValueError("Missing network configuration")
         capacity = network.get("transmission-capacity")
         overhead = network.get("overhead")
-        if "Mbps" in capacity:
-            self.capacity = int(capacity.replace("Mbps", "")) * 10**6
-        elif capacity == "1.0E8":
-            self.capacity = 100 * 10 ** 6
-        else:
-            self.capacity = int(capacity)
+        # Handles the different formats of the capacity encountered in the XML files
+        try:
+            if "Mbps" in capacity:
+                self.capacity = int(capacity.replace("Mbps", "")) * 10**6
+            elif capacity == "1.0E8":
+                self.capacity = 100 * 10**6
+            else:
+                self.capacity = int(capacity)
+        except Exception as e:
+            print(f"Error parsing capacity: {e}")
+            self.capacity = CAPACITY  # Default capacity
         self.overhead = int(overhead)
 
     def parse_stations(self) -> None:
+        """Parse all stations in the network."""
         for station in self.root.findall("station"):
             name = station.get("name")
             if name:
                 self.nodes[name] = Station(name)
 
     def parse_switches(self) -> None:
+        """Parse all switches in the network."""
         for sw in self.root.findall("switch"):
             name = sw.get("name")
             if name:
                 self.nodes[name] = Switch(name)
 
     def parse_edges(self) -> None:
+        """Parse all edges in the network."""
         for link in self.root.findall("link"):
             source_name = link.get("from")
             dest_name = link.get("to")
@@ -185,17 +220,19 @@ class Parser:
 
                 edge = Edge(source, dest, name)
                 self.edges.append(edge)
-                # Create reverse edge
+                # Create reverse edge for bidirectional links
                 edge_reverse = Edge(dest, source, name)
                 self.edges.append(edge_reverse)
 
     def parse_flows(self) -> None:
+        """Parse all flows in the network."""
         for fl in self.root.findall("flow"):
             name = fl.get("name")
             source_name = fl.get("source")
 
             if name and source_name:
                 source = self.nodes[source_name]
+                # We assume that the max-payload is equal to the payload
                 max_payload = fl.get("max-payload")
                 period = fl.get("period")
 
@@ -234,15 +271,17 @@ class Parser:
                             self.targets.append(target)
 
                     for edge in edges_traversed:
-                        edge.goal += 1
+                        edge.flows_passing += 1
 
     def parse_network(self) -> Tuple[Dict[str, Flow], List[Target], List[Edge]]:
         """Parse the network configuration from the XML file."""
+        # This populates the class attributes
         self.parse_network_header()
         self.parse_stations()
         self.parse_switches()
         self.parse_edges()
         self.parse_flows()
+        # Return the parsed network components if needed
         return self.flows, self.targets, self.edges
 
 
@@ -250,40 +289,36 @@ class NetworkCalculus:
     """Handles network calculus computations for delays and loads."""
 
     def __init__(
-        self, flows: Dict[str, Flow], targets: List[Target], edges: List[Edge], capacity: int
+        self,
+        flows: Dict[str, Flow],
+        targets: List[Target],
+        edges: List[Edge],
+        capacity: int,
     ):
-        """Initialize with network components.
-
-        Args:
-            flows: Dictionary of Flow objects
-            targets: List of Target objects
-            edges: List of Edge objects
-        """
         self.flows = flows
         self.targets = targets
         self.edges = edges
         self.capacity = capacity
 
-    def _add_curve_to_switch(self, target: Target, edge: Edge) -> None:
+    def _aggregate_arrival_curve(self, target: Target, edge: Edge) -> None:
         """Add arrival curve to edge if not already accounted for."""
         already_accounted = target.flow.name in edge.flows_passed
         if not already_accounted:
-            edge.arrival_curve_aggregated.add(
-                target.arrivalCurve.burst, target.arrivalCurve.rate
-            )
+            edge.cumulative_arrival_curve + target.arrivalCurve
             edge.flows_passed.append(target.flow.name)
 
     def _check_proceed(self, target: Target) -> bool:
         """Check if target can proceed to next step."""
         if target.completed:
             return False
-        edge = target.path[target.current_step]
-        return len(edge.flows_passed) == edge.goal
+        else:
+            edge = target.path[target.current_step]
+            return len(edge.flows_passed) == edge.flows_passing
 
     def calculate_station_arrival_curves(self) -> None:
         """Calculate initial arrival curves for each source station."""
         for flow in self.flows.values():
-            flow.source.arrival_curve_aggregated.add(
+            flow.source.cumulative_arrival_curve + ArrivalCurve(
                 flow.get_data_length(), flow.get_rate()
             )
 
@@ -294,11 +329,11 @@ class NetworkCalculus:
             edge = target.path[target.current_step]
 
             # Add source station's curve to first edge
-            self._add_curve_to_switch(target, edge)
+            self._aggregate_arrival_curve(target, edge)
 
             # Calculate source delay if needed
             if edge.delay == 0:
-                edge.delay = source.arrival_curve_aggregated.burst / self.capacity
+                edge.delay = source.cumulative_arrival_curve.burst / self.capacity
 
             # Update arrival curve and move to next step
             target.arrivalCurve.add_delay(edge.delay)
@@ -306,7 +341,7 @@ class NetworkCalculus:
 
             # Add curve to next switch
             next_edge = target.path[target.current_step]
-            self._add_curve_to_switch(target, next_edge)
+            self._aggregate_arrival_curve(target, next_edge)
 
     def process_target(self, target: Target) -> bool:
         """Process a single target through its path.
@@ -319,7 +354,7 @@ class NetworkCalculus:
 
             # Calculate edge delay if needed
             if edge.delay == 0:
-                edge.delay = edge.arrival_curve_aggregated.burst / self.capacity
+                edge.delay = edge.cumulative_arrival_curve.burst / self.capacity
 
             target.arrivalCurve.add_delay(edge.delay)
 
@@ -332,7 +367,7 @@ class NetworkCalculus:
             # Move to next edge
             target.current_step += 1
             next_edge = target.path[target.current_step]
-            self._add_curve_to_switch(target, next_edge)
+            self._aggregate_arrival_curve(target, next_edge)
 
         return False
 
@@ -353,13 +388,13 @@ class NetworkCalculus:
             # Calculate direct traffic load
             direct_edge = self.edges[i]
             direct_edge.load = (
-                direct_edge.arrival_curve_aggregated.rate * 100 / self.capacity
+                direct_edge.cumulative_arrival_curve.rate * 100 / self.capacity
             )
 
             # Calculate reverse traffic load
             reverse_edge = self.edges[i + 1]
             reverse_edge.load = (
-                reverse_edge.arrival_curve_aggregated.rate * 100 / self.capacity
+                reverse_edge.cumulative_arrival_curve.rate * 100 / self.capacity
             )
 
             # Ensure loads don't exceed link capacity
@@ -376,19 +411,13 @@ class NetworkCalculus:
         self.process_all_targets()
         self.calculate_edge_loads()
 
+
 class Writer:
     """Handles writing network simulation results to XML files."""
 
     def __init__(
         self, xml_file: str, mode: str = MODE, path_to_out: Path = PATH_TO_OUT
     ):
-        """Initialize the writer with output configuration.
-
-        Args:
-            xml_file: Path to the input XML file
-            mode: Simulation mode ("DEBUG" or "PROD")
-            path_to_out: Directory path for output files
-        """
         self.input_path = Path(xml_file)
         self.mode = mode
         self.output_dir = path_to_out if self.mode == "DEBUG" else Path(".")
@@ -403,12 +432,7 @@ class Writer:
         )
 
     def write_results(self, flows: List[Flow], edges: List[Edge]) -> None:
-        """Write network simulation results to XML file.
-
-        Args:
-            flows: List of Flow objects with simulation results
-            edges: List of Edge objects with load information
-        """
+        """Write network simulation results to XML file."""
         with self.output_path.open("w") as res:
             self._write_header(res)
             self._write_delays(res, flows)
@@ -428,7 +452,7 @@ class Writer:
             for target in flow.targets:
                 file.write(
                     f'\t\t\t<target name="{target.destination.name}" '
-                    f'value="{s_to_ms(target.total_delay):.1f}"/>\n'
+                    f'value="{s_to_us(target.total_delay):.1f}"/>\n'
                 )
             file.write("\t\t</flow>\n")
         file.write("\t</delays>\n")
@@ -439,15 +463,17 @@ class Writer:
         for i in range(0, len(edges) - 1, 2):
             edge_direct = edges[i]
             edge_reverse = edges[i + 1]
-            edge_name = f"{edge_direct.source.name} =&gt; {edge_direct.destination.name}"
+            edge_name = (
+                f"{edge_direct.source.name} =&gt; {edge_direct.destination.name}"
+            )
             file.write(f'\t\t<edge name="{edge_name}">\n')
             file.write(
                 f'\t\t\t<usage percent = "{edge_direct.load:.1f}%" type = "direct" '
-                f'value = "{edge_direct.arrival_curve_aggregated.rate}"/>\n'
+                f'value = "{edge_direct.cumulative_arrival_curve.rate}"/>\n'
             )
             file.write(
                 f'\t\t\t<usage percent = "{edge_reverse.load:.1f}%" type = "reverse" '
-                f'value = "{edge_reverse.arrival_curve_aggregated.rate}"/>\n'
+                f'value = "{edge_reverse.cumulative_arrival_curve.rate}"/>\n'
             )
             file.write("\t\t</edge>\n")
         file.write("\t</load>\n")
@@ -467,10 +493,18 @@ class Check:
     """Handles comparison of simulation results against reference data."""
 
     def __init__(
-        self, input_file: str, mode: str = MODE
+        self,
+        input_file: str,
+        mode: str = MODE,
+        tolerances: Tuple[float, float] = (1.1, 0.2),
     ):
-        self.sim_path = PATH_TO_OUT / f"{Path(input_file).stem}_res_DEBUG.xml" if mode == "DEBUG" else Path(".") / f"{Path(input_file).stem}_res.xml"
+        self.sim_path = (
+            PATH_TO_OUT / f"{Path(input_file).stem}_res_DEBUG.xml"
+            if mode == "DEBUG"
+            else Path(".") / f"{Path(input_file).stem}_res.xml"
+        )
         self.ref_path = PATH_TO_SAMPLES / f"{Path(input_file).stem}_res.xml"
+        self.delay_tolerance, self.load_tolerance = tolerances
 
     def _compare_delays(
         self, sim_tree: ET.ElementTree, ref_tree: ET.ElementTree
@@ -500,7 +534,7 @@ class Check:
                 ref_delay = float(ref_target.get("value"))
                 diff = abs(sim_delay - ref_delay)
 
-                status = "VALID" if diff < 1.0 else "INVALID"
+                status = "VALID" if diff < self.delay_tolerance else "INVALID"
                 print(
                     f"{status} >>> Target {target_name:10} - Sim: {sim_delay:8.1f}μs, "
                     f"Ref: {ref_delay:8.1f}μs, Diff: {diff:8.1f}μs"
@@ -540,7 +574,7 @@ class Check:
                 ref_percent = float(ref_usage.get("percent").rstrip("%"))
                 diff = abs(sim_percent - ref_percent)
 
-                status = "VALID" if diff < 0.1 else "INVALID"
+                status = "VALID" if diff < self.load_tolerance else "INVALID"
                 print(
                     f"{status} >>> Type {usage_type:8} - Sim: {sim_percent:5.1f}%, "
                     f"Ref: {ref_percent:5.1f}%, Diff: {diff:5.1f}%"
@@ -574,15 +608,15 @@ class Check:
             max_load_diff = self._compare_loads(sim_tree, ref_tree)
 
             # Overall assessment
-            delay_ok = max_delay_diff <= 1.1
-            load_ok = max_load_diff <= 0.2
+            delay_ok = max_delay_diff <= self.delay_tolerance
+            load_ok = max_load_diff <= self.load_tolerance
 
             print("\nOverall Status:", end=" ")
             if delay_ok and load_ok:
                 print("PASSED")
                 return True
             else:
-                print("FAILED")
+                print("FAILED - Check details above")
                 return False
 
         except ET.ParseError as e:
@@ -593,12 +627,12 @@ class Check:
             return False
 
 
-def main(file):
+def main(file: str) -> None:
     # Parse network
     parser = Parser(Path(file))
     flows, targets, edges = parser.parse_network()
 
-    # Initial calculations
+    # Loads and delays computation
     network_calculus = NetworkCalculus(flows, targets, edges, parser.capacity)
     network_calculus.compute()
 
@@ -611,6 +645,8 @@ def main(file):
     if MODE == "DEBUG":
         checker = Check(file)
         checker.compare()
+
+    return None
 
 
 if __name__ == "__main__":
