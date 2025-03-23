@@ -155,6 +155,8 @@ class Parser:
         overhead = network.get("overhead")
         if "Mbps" in capacity:
             self.capacity = int(capacity.replace("Mbps", "")) * 10**6
+        elif capacity == "1.0E8":
+            self.capacity = 100 * 10 ** 6
         else:
             self.capacity = int(capacity)
         self.overhead = int(overhead)
@@ -426,7 +428,7 @@ class Writer:
             for target in flow.targets:
                 file.write(
                     f'\t\t\t<target name="{target.destination.name}" '
-                    f'value="{s_to_ms(target.total_delay)}" />\n'
+                    f'value="{s_to_ms(target.total_delay):.1f}"/>\n'
                 )
             file.write("\t\t</flow>\n")
         file.write("\t</delays>\n")
@@ -440,12 +442,12 @@ class Writer:
             edge_name = f"{edge_direct.source.name} =&gt; {edge_direct.destination.name}"
             file.write(f'\t\t<edge name="{edge_name}">\n')
             file.write(
-                f'\t\t\t<usage percent="{edge_direct.load:.1f}%" type="direct" '
-                f'value="{edge_direct.arrival_curve_aggregated.rate}" />\n'
+                f'\t\t\t<usage percent = "{edge_direct.load:.1f}%" type = "direct" '
+                f'value = "{edge_direct.arrival_curve_aggregated.rate}"/>\n'
             )
             file.write(
-                f'\t\t\t<usage percent="{edge_reverse.load:.1f}%" type="reverse" '
-                f'value="{edge_reverse.arrival_curve_aggregated.rate}" />\n'
+                f'\t\t\t<usage percent = "{edge_reverse.load:.1f}%" type = "reverse" '
+                f'value = "{edge_reverse.arrival_curve_aggregated.rate}"/>\n'
             )
             file.write("\t\t</edge>\n")
         file.write("\t</load>\n")
@@ -603,10 +605,12 @@ def main(file):
     # Save results
     writer = Writer(file)
     writer.write_results(list(flows.values()), edges)
+    writer.print_output()
 
     # Compare results
-    checker = Check(file)
-    checker.compare()
+    if MODE == "DEBUG":
+        checker = Check(file)
+        checker.compare()
 
 
 if __name__ == "__main__":
