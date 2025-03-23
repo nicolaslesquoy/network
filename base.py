@@ -10,7 +10,7 @@ from pathlib import Path
 import sys
 
 # Constants
-MODE = "DEBUG"  # or "DEBUG" to compare with references features
+MODE = "PROD"  # or "DEBUG" to compare with references in '\samples' folder
 CAPACITY = 100 * 10**6  # 100 Mbps - Default
 PATH_TO_OUT = Path("out/")
 PATH_TO_SAMPLES = Path("samples/")
