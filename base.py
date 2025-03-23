@@ -1,5 +1,9 @@
 # Standard librairies
+#! This script is a Python 3.7+ Timaeus plugin.
 from __future__ import annotations
+import sys
+if sys.version_info < (3, 7):
+    raise RuntimeError("This script requires Python 3.7+")
 from typing import Dict, List, Tuple
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -95,6 +99,12 @@ class Target:
         self.current_step = 0
         self.total_delay = 0.0
         self.completed = False
+
+    def __repr__(self) -> str:
+        return f"Target {self.destination.name} with {len(self.path)} steps"
+    
+    def __str__(self) -> str:
+        return f"Target {self.destination.name} with {len(self.path)} steps"
 
 
 # Link
@@ -613,7 +623,7 @@ class Check:
 
             print("\nOverall Status:", end=" ")
             if delay_ok and load_ok:
-                print("PASSED")
+                print(f"PASSED - Max delay diff. = {max_delay_diff:.1f}μs, Max load diff. = {max_load_diff:.1f}%")
                 return True
             else:
                 print("FAILED - Check details above")
@@ -631,20 +641,38 @@ def main(file: str) -> None:
     # Parse network
     parser = Parser(Path(file))
     flows, targets, edges = parser.parse_network()
+    print(flows, targets, edges)
 
-    # Loads and delays computation
-    network_calculus = NetworkCalculus(flows, targets, edges, parser.capacity)
-    network_calculus.compute()
+    # Handles case with only two stations and a direct link
+    if len(edges) == 2 and len(targets) == 1:
+        edge = edges[0]
+        target = targets[0]
+        edge.cumulative_arrival_curve + target.arrivalCurve
+        edge.delay = edge.cumulative_arrival_curve.burst / parser.capacity
+        target.total_delay = edge.delay
+        edge.load = edge.cumulative_arrival_curve.rate * 100 / parser.capacity
+        writer = Writer(file)
+        writer.write_results(list(flows.values()), edges)
+        writer.print_output()
+        # Compare results
+        if MODE == "DEBUG":
+            checker = Check(file, MODE, tolerances=(20, 2))
+            checker.compare()
+        return None
+    else:
+        # Loads and delays computation
+        network_calculus = NetworkCalculus(flows, targets, edges, parser.capacity)
+        network_calculus.compute()
 
-    # Save results
-    writer = Writer(file)
-    writer.write_results(list(flows.values()), edges)
-    writer.print_output()
+        # Save results
+        writer = Writer(file)
+        writer.write_results(list(flows.values()), edges)
+        writer.print_output()
 
-    # Compare results
-    if MODE == "DEBUG":
-        checker = Check(file)
-        checker.compare()
+        # Compare results
+        if MODE == "DEBUG":
+            checker = Check(file, MODE, tolerances=(20, 2))
+            checker.compare()
 
     return None
 
