@@ -10,6 +10,7 @@ from pathlib import Path
 import sys
 
 # Constants
+# If you want to check the correctness of the program, please use the debug mode.
 MODE = "PROD"  # or "DEBUG" to compare with references in '\samples' folder
 CAPACITY = 100 * 10**6  # 100 Mbps - Default
 PATH_TO_OUT = Path("out/")
@@ -196,6 +197,8 @@ class Parser:
                 self.capacity = int(capacity.replace("Mbps", "")) * 10**6
             elif capacity == "1.0E8":
                 self.capacity = 100 * 10**6
+            elif capacity < 1E4:
+                self.capacity = int(capacity) * 10**6
             else:
                 self.capacity = int(capacity)
         except Exception as e:
@@ -656,6 +659,9 @@ def main(file: str) -> None:
         writer.print_output()
         # Compare results
         if MODE == "DEBUG":
+            # The maximum delay is 20 μs and the maximum load is 2%
+            # The actual maximum delay over all the samples is 13 µs for AFDX.xml
+            # All other samples are below 2 µs.
             checker = Check(file, MODE, tolerances=(20, 2))
             checker.compare()
         return None
